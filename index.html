@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS & Signal Checker | Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0a0e27 0%, #020202 100%); color: white; margin: 0; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glass:hover { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08); transition: all 0.3s ease; }
+        .accent-text { color: #10b981; }
+        .accent-bg { background: #10b981; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.2); } 50% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); } }
+        @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
+        
+        .animate-pulse-glow { animation: pulse 2s infinite; }
+        .animate-glow { animation: glow 2s infinite; }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .status-good { color: #10b981; }
+        .status-warn { color: #f59e0b; }
+        .status-bad { color: #ef4444; }
+        
+        .metric-card { position: relative; overflow: hidden; }
+        .metric-card::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: slide 3s infinite; }
+        
+        .chart-bar { height: 20px; background: linear-gradient(90deg, #10b981, #06b6d4); border-radius: 10px; margin: 4px 0; transition: all 0.3s ease; }
+        .chart-bar:hover { transform: scaleX(1.05); }
+        
+        .gauge { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; position: relative; }
+        .gauge::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(#10b981 var(--percentage), rgba(255,255,255,0.05) 0); }
+        .gauge-value { position: relative; z-index: 1; }
+        
+        .control-btn { padding: 8px 16px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.3s ease; }
+        .control-btn:hover { background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.6); box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+        .control-btn:active { transform: scale(0.95); }
+        .control-btn.active { background: rgba(16, 185, 129, 0.3); border-color: #10b981; }
+        
+        .mini-chart { display: flex; align-items: flex-end; gap: 2px; height: 30px; }
+        .mini-bar { flex: 1; background: #10b981; border-radius: 2px 2px 0 0; min-height: 2px; }
+        
+        .refresh-rate { font-size: 11px; opacity: 0.6; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-12 animate-float">
+            <div>
+                <h1 class="text-4xl font-black tracking-tighter">FPS & SIGNAL <span class="accent-text">CHECKER</span></h1>
+                <p class="text-[9px] uppercase tracking-[0.4em] opacity-40 font-bold mt-1">Professional Network & Performance Telemetry</p>
+            </div>
+            <div class="flex gap-3 flex-wrap">
+                <div class="px-4 py-2 glass rounded-full text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
+                    <div class="w-2 h-2 accent-bg rounded-full animate-glow"></div>
+                    <span id="status-indicator">Live Monitoring</span>
+                </div>
+                <div class="px-4 py-2 glass rounded-full text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
+                    <span id="refresh-rate-display" class="refresh-rate">1000ms</span>
+                </div>
+                <button onclick="toggleRecording()" class="control-btn" title="Toggle recording">
+                    <span id="rec-indicator">● REC</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div class="glass p-6 rounded-[2rem] border-l-4 border-emerald-500/50 metric-card hover:border-emerald-500">
+                <p class="text-[10px] uppercase tracking-widest opacity-30 font-bold mb-3">Frame Rate</p>
+                <div class="flex items-baseline gap-2 mb-3">
+                    <span id="fps-val" class="text-5xl font-black tracking-tighter">0</span>
+                    <span class="text-[10px] font-bold opacity-20">FPS</span>
+                </div>
+                <div class="mini-chart" id="fps-chart"></div>
+            </div>
+
+            <div class="glass p-6 rounded-[2rem] border-l-4 border-cyan-500/50 metric-card hover:border-cyan-500">
+                <p class="text-[10px] uppercase tracking-widest opacity-30 font-bold mb-3">Latency</p>
+                <div class="flex items-baseline gap-2 mb-3">
+                    <span id="latency-val" class="text-5xl font-black tracking-tighter">0</span>
+                    <span class="text-[10px] font-bold opacity-20">MS</span>
+                </div>
+                <div class="mini-chart" id="latency-chart"></div>
+            </div>
+
+            <div class="glass p-6 rounded-[2rem] border-l-4 border-purple-500/50 metric-card hover:border-purple-500">
+                <p class="text-[10px] uppercase tracking-widest opacity-30 font-bold mb-3">Jitter</p>
+                <div class="flex items-baseline gap-2 mb-3">
+                    <span id="jitter-val" class="text-5xl font-black tracking-tighter">0</span>
+                    <span class="text-[10px] font-bold opacity-20">MS</span>
+                </div>
+                <div class="mini-chart" id="jitter-chart"></div>
+            </div>
+
+            <div class="glass p-6 rounded-[2rem] border-l-4 border-amber-500/50 metric-card hover:border-amber-500">
+                <p class="text-[10px] uppercase tracking-widest opacity-30 font-bold mb-3">Stability</p>
+                <div class="flex items-baseline gap-2 mb-3">
+                    <span id="stability-val" class="text-5xl font-black tracking-tighter">100</span>
+                    <span class="text-[10px] font-bold opacity-20">%</span>
+                </div>
+                <div class="mini-chart" id="stability-chart"></div>
+            </div>
+        </div>
+
+        <!-- Network & Session Info -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+            <!-- Network Diagnostics -->
+            <div class="glass rounded-[2.5rem] p-8">
+                <h3 class="text-[10px] uppercase tracking-[0.3em] font-bold opacity-30 mb-8 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Network Diagnostics
+                </h3>
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                        <span class="text-xs opacity-40">Public IP Address</span>
+                        <div class="flex items-center gap-3">
+                            <span id="ip-val" class="mono text-sm font-bold">Fetching...</span>
+                            <button onclick="toggleIp()" class="opacity-30 hover:opacity-100 transition-opacity p-1" title="Toggle IP visibility">
+                                <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                        <span class="text-xs opacity-40">Signal Quality</span>
+                        <span id="signal-val" class="accent-text font-bold">Detecting</span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                        <span class="text-xs opacity-40">Download Speed</span>
+                        <span id="downlink-val" class="mono text-sm font-bold">0 Mbps</span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                        <span class="text-xs opacity-40">Connection Type</span>
+                        <span id="type-val" class="mono text-sm">N/A</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs opacity-40">Packet Loss</span>
+                        <span id="loss-val" class="mono text-sm">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Telemetry -->
+            <div class="glass rounded-[2.5rem] p-8">
+                <h3 class="text-[10px] uppercase tracking-[0.3em] font-bold opacity-30 mb-8 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Session Telemetry
+                </h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="glass p-4 rounded-xl">
+                        <p class="text-[8px] uppercase opacity-30 font-bold mb-1">Data Sent</p>
+                        <p id="sent-val" class="text-lg font-black tracking-tight">0 KB</p>
+                    </div>
+                    <div class="glass p-4 rounded-xl">
+                        <p class="text-[8px] uppercase opacity-30 font-bold mb-1">Data Received</p>
+                        <p id="received-val" class="text-lg font-black tracking-tight">0 KB</p>
+                    </div>
+                    <div class="glass p-4 rounded-xl">
+                        <p class="text-[8px] uppercase opacity-30 font-bold mb-1">Avg RTT</p>
+                        <p id="rtt-val" class="text-lg font-black tracking-tight">0 ms</p>
+                    </div>
+                    <div class="glass p-4 rounded-xl">
+                        <p class="text-[8px] uppercase opacity-30 font-bold mb-1">Session Time</p>
+                        <p id="session-val" class="text-lg font-black tracking-tight">00:00:00</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Insights -->
+        <div class="glass rounded-[2.5rem] p-8">
+            <h3 class="text-[10px] uppercase tracking-[0.3em] font-bold opacity-30 mb-8 flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+                Performance Insights & Stats
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                    <p class="text-[9px] uppercase opacity-30 font-bold mb-4">FPS History</p>
+                    <div class="mini-chart" id="fps-trend" style="height: 40px;"></div>
+                    <p class="text-[9px] opacity-40 mt-2">Avg: <span id="avg-fps" class="accent-text font-bold">0</span> | Min: <span id="min-fps" class="status-bad">0</span></p>
+                </div>
+                <div>
+                    <p class="text-[9px] uppercase opacity-30 font-bold mb-4">Latency Trend</p>
+                    <div class="mini-chart" id="latency-trend" style="height: 40px;"></div>
+                    <p class="text-[9px] opacity-40 mt-2">Avg: <span id="avg-latency" class="accent-text font-bold">0ms</span> | Max: <span id="max-latency" class="status-warn">0ms</span></p>
+                </div>
+                <div>
+                    <p class="text-[9px] uppercase opacity-30 font-bold mb-4">Overall Score</p>
+                    <div class="flex items-center justify-center h-20">
+                        <div class="gauge" style="--percentage: 100%;">
+                            <div class="gauge-value"><span id="score-val" class="accent-text">100</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="mt-12 flex justify-center gap-3 flex-wrap">
+            <button onclick="setRefreshRate(500)" class="control-btn" title="500ms refresh">500ms</button>
+            <button onclick="setRefreshRate(1000)" class="control-btn active" title="1000ms refresh">1000ms</button>
+            <button onclick="setRefreshRate(2000)" class="control-btn" title="2000ms refresh">2000ms</button>
+            <button onclick="resetStats()" class="control-btn">Reset Stats</button>
+            <button onclick="exportStats()" class="control-btn">Export Data</button>
+            <button onclick="toggleAutoRefresh()" class="control-btn" id="refresh-btn">Auto Refresh: ON</button>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let latencyHistory = [];
+        let fpsHistory = [];
+        let jitterHistory = [];
+        let stabilityHistory = [];
+        let dataSent = 0;
+        let dataReceived = 0;
+        let realIp = 'Fetching...';
+        let ipVisible = false;
+        let sessionStartTime = Date.now();
+        let recording = false;
+        let autoRefresh = true;
+        let packetLoss = 0;
+        let maxHistoryLength = 30;
+        let refreshRate = 1000; // Default 1 second
+        let networkIntervalId = null;
+
+        // Fetch IP Address
+        fetch('https://api.ipify.org?format=json')
+            .then(res => res.json())
+            .then(data => {
+                realIp = data.ip;
+                updateIpDisplay();
+            })
+            .catch(() => {
+                realIp = 'Hidden/VPN';
+                updateIpDisplay();
+            });
+        
+        function toggleIp() {
+            ipVisible = !ipVisible;
+            updateIpDisplay();
+        }
+
+        function updateIpDisplay() {
+            const el = document.getElementById('ip-val');
+            const icon = document.getElementById('eye-icon');
+            if (ipVisible) {
+                el.innerText = realIp;
+                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            } else {
+                el.innerText = '• • • • • • • •';
+                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            }
+        }
+
+        // FPS Counter
+        function updateFPS() {
+            const now = performance.now();
+            frameCount++;
+            if (now - lastTime >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (now - lastTime));
+                document.getElementById('fps-val').innerText = fps;
+                fpsHistory.push(fps);
+                if (fpsHistory.length > maxHistoryLength) fpsHistory.shift();
+                updateChart('fps-chart', fpsHistory, 60);
+                updateTrend('fps-trend', fpsHistory);
+                frameCount = 0;
+                lastTime = now;
+            }
+            requestAnimationFrame(updateFPS);
+        }
+        requestAnimationFrame(updateFPS);
+
+        // Network Monitoring with Dynamic Refresh Rate
+        async function updateNetwork() {
+            if (!autoRefresh) return;
+            
+            const start = performance.now();
+            try {
+                const res = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
+                const end = performance.now();
+                const latency = Math.round(end - start);
+                document.getElementById('latency-val').innerText = latency;
+                
+                dataSent += 100;
+                dataReceived += parseInt(res.headers.get('content-length') || '0') + 200;
+                document.getElementById('sent-val').innerText = formatBytes(dataSent);
+                document.getElementById('received-val').innerText = formatBytes(dataReceived);
+
+                latencyHistory.push(latency);
+                if (latencyHistory.length > maxHistoryLength) latencyHistory.shift();
+                updateChart('latency-chart', latencyHistory, 500);
+                updateTrend('latency-trend', latencyHistory);
+                
+                // Calculate Jitter
+                let jitter = 0;
+                if (latencyHistory.length > 1) {
+                    let sum = 0;
+                    for(let i = 1; i < latencyHistory.length; i++) {
+                        sum += Math.abs(latencyHistory[i] - latencyHistory[i-1]);
+                    }
+                    jitter = Math.round(sum / (latencyHistory.length - 1));
+                }
+                document.getElementById('jitter-val').innerText = jitter;
+                jitterHistory.push(jitter);
+                if (jitterHistory.length > maxHistoryLength) jitterHistory.shift();
+                updateChart('jitter-chart', jitterHistory, 100);
+                
+                // Calculate Stability
+                const stability = Math.max(0, 100 - (jitter / 2) - (latency > 200 ? 10 : 0) - (packetLoss * 2));
+                document.getElementById('stability-val').innerText = Math.round(stability);
+                stabilityHistory.push(stability);
+                if (stabilityHistory.length > maxHistoryLength) stabilityHistory.shift();
+                updateChart('stability-chart', stabilityHistory, 100);
+                
+                // Calculate RTT Average
+                const avgRtt = Math.round(latencyHistory.reduce((a, b) => a + b, 0) / latencyHistory.length);
+                document.getElementById('rtt-val').innerText = avgRtt + ' ms';
+                
+                document.getElementById('status-indicator').innerText = 'Online';
+                document.querySelector('#status-indicator').parentElement.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+            } catch(e) {
+                document.getElementById('latency-val').innerText = '-1';
+                document.getElementById('status-indicator').innerText = 'Offline';
+                document.querySelector('#status-indicator').parentElement.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                packetLoss += 5;
+            }
+
+            // Connection Info
+            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn) {
+                document.getElementById('downlink-val').innerText = (conn.downlink || 0).toFixed(1) + ' Mbps';
+                document.getElementById('type-val').innerText = (conn.effectiveType || 'N/A').toUpperCase();
+                
+                let label = 'Weak';
+                let className = 'status-bad';
+                if (conn.downlink > 10) { label = 'Excellent'; className = 'status-good'; }
+                else if (conn.downlink > 5) { label = 'Stable'; className = 'status-warn'; }
+                
+                const signalEl = document.getElementById('signal-val');
+                signalEl.innerText = label;
+                signalEl.className = className + ' font-bold';
+            }
+            
+            // Simulate Packet Loss
+            packetLoss = Math.max(0, packetLoss - 0.1);
+            document.getElementById('loss-val').innerText = packetLoss.toFixed(2) + '%';
+            
+            updateStats();
+        }
+        
+        // Start network monitoring with initial refresh rate
+        networkIntervalId = setInterval(updateNetwork, refreshRate);
+        updateNetwork();
+
+        // Update Session Timer
+        setInterval(() => {
+            const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+            const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+            const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+            const s = String(elapsed % 60).padStart(2, '0');
+            document.getElementById('session-val').innerText = `${h}:${m}:${s}`;
+        }, 1000);
+
+        // Chart Rendering
+        function updateChart(elementId, data, max) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = '';
+            data.forEach(val => {
+                const bar = document.createElement('div');
+                bar.className = 'mini-bar';
+                bar.style.height = Math.max(2, (val / max) * 100) + '%';
+                el.appendChild(bar);
+            });
+        }
+
+        function updateTrend(elementId, data) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = '';
+            const max = Math.max(...data, 1);
+            data.forEach(val => {
+                const bar = document.createElement('div');
+                bar.className = 'mini-bar';
+                bar.style.height = Math.max(2, (val / max) * 100) + '%';
+                el.appendChild(bar);
+            });
+        }
+
+        // Statistics
+        function updateStats() {
+            if (fpsHistory.length > 0) {
+                const avgFps = Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length);
+                const minFps = Math.min(...fpsHistory);
+                document.getElementById('avg-fps').innerText = avgFps;
+                document.getElementById('min-fps').innerText = minFps;
+            }
+
+            if (latencyHistory.length > 0) {
+                const avgLatency = Math.round(latencyHistory.reduce((a, b) => a + b, 0) / latencyHistory.length);
+                const maxLatency = Math.max(...latencyHistory);
+                document.getElementById('avg-latency').innerText = avgLatency + 'ms';
+                document.getElementById('max-latency').innerText = maxLatency + 'ms';
+            }
+
+            // Overall Score
+            let score = 100;
+            if (fpsHistory.length > 0 && Math.min(...fpsHistory) < 30) score -= 20;
+            if (latencyHistory.length > 0 && Math.max(...latencyHistory) > 150) score -= 15;
+            if (packetLoss > 2) score -= 10;
+            score = Math.max(0, score);
+            
+            document.getElementById('score-val').innerText = Math.round(score);
+            const gauge = document.querySelector('.gauge');
+            gauge.style.setProperty('--percentage', (score) + '%');
+        }
+
+        // Utility Functions
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+        }
+
+        function toggleRecording() {
+            recording = !recording;
+            const btn = document.getElementById('rec-indicator');
+            btn.style.color = recording ? '#ef4444' : '#10b981';
+            btn.innerText = recording ? '● RECORDING' : '● REC';
+        }
+
+        function resetStats() {
+            if (confirm('Reset all statistics?')) {
+                fpsHistory = [];
+                latencyHistory = [];
+                jitterHistory = [];
+                stabilityHistory = [];
+                dataSent = 0;
+                dataReceived = 0;
+                packetLoss = 0;
+                sessionStartTime = Date.now();
+                updateStats();
+                alert('Statistics reset!');
+            }
+        }
+
+        function exportStats() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                fpsHistory,
+                latencyHistory,
+                packetLoss,
+                dataSent: formatBytes(dataSent),
+                dataReceived: formatBytes(dataReceived),
+                sessionTime: document.getElementById('session-val').innerText,
+                currentIP: realIp
+            };
+            console.log('Exporting stats...', data);
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'network-stats-' + new Date().getTime() + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            document.getElementById('refresh-btn').innerText = 'Auto Refresh: ' + (autoRefresh ? 'ON' : 'OFF');
+        }
+
+        // Set Refresh Rate
+        function setRefreshRate(rate) {
+            refreshRate = rate;
+            clearInterval(networkIntervalId);
+            networkIntervalId = setInterval(updateNetwork, refreshRate);
+            updateNetwork(); // Immediate update
+            
+            // Update UI
+            document.querySelectorAll('.control-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('refresh-rate-display').innerText = rate + 'ms';
+        }
+    </script>
+</body>
+</html>
