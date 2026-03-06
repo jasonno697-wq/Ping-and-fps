@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed FPS & Signal Checker</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
+        .console { background: #333; color: #fff; padding: 10px; border-radius: 5px; }
+        input { width: 100%; padding: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Fixed FPS & Signal Checker</h1>
+    <div class="console" id="console"></div>
+    <input type="text" id="commandInput" placeholder="Enter command..." />
+    <script>
+        const consoleDiv = document.getElementById('console');
+        const commandInput = document.getElementById('commandInput');
+
+        function logToConsole(message) {
+            const line = document.createElement('div');
+            line.textContent = message;
+            consoleDiv.appendChild(line);
+        }
+
+        commandInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                const command = commandInput.value;
+                commandInput.value = '';
+                processCommand(command);
+            }
+        });
+
+        function processCommand(command) {
+            // Process commands here (add your commands and their logic)
+            if (command === 'fps') {
+                logToConsole('Current FPS: 60 (fixed)'); // Sample output
+            } else if (command === 'packetLoss') {
+                logToConsole('Packet loss: 0%'); // Sample output
+            } else {
+                logToConsole('Unknown command: ' + command);
+            }
+        }
+
+        // Example fixed FPS setting
+        let fixedFPS = 60;
+        setInterval(() => {
+            logToConsole('Running at ' + fixedFPS + ' FPS');
+        }, 1000);
+    </script>
+</body>
+</html>
